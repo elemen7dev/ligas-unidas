@@ -11,7 +11,7 @@ Sitio: https://ligasunidas.vercel.app · Panel: `/panel` · Pendientes: `PENDIEN
 - `supabase_migracion_0NN_*.sql`: historial de la base (aplicadas en orden; están a mano, no en el formato de la CLI).
 - `supabase/functions/usuarios/`: Edge Function para crear y gestionar usuarios (solo superadmin).
 - `demo5_actual.html`: maqueta original (Liga de Fútbol Rural); solo referencia.
-- `publicar/` y `ligasunidas-sitio.zip` ya no hacen falta (se generaban con `empaquetar_sitio.ps1`; no se versionan).
+- Ya no existen `publicar/`, el zip ni `empaquetar_sitio.ps1`: el sitio se publica directo desde `sitio/` por Vercel.
 
 ## Cómo se publica
 Repo privado `elemen7dev/ligas-unidas`, rama `main`. Vercel (proyecto `ligasunidas`, Root Directory `sitio`) publica solo en cada push a `main`.
