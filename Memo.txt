@@ -1,0 +1,112 @@
+Claude
+RESUMEN_PROYECTO_LIGA_RURAL.md
+RESUMEN_PROYECTO_LIGA_RURAL.md
+MD
+demo5_actual.html
+demo5_actual.html
+HTML
+A partir de los archivos que te adjunto, utilizalos de consulta para que en caso de consulta futura puedas acceder y usarlos ed antedentes. pueden ser modificados tambien, y crearemos nuevos de ser necesario. este chat será usado oportunamente. por ahora nada mas
+
+Listo, Cristian. Tengo cargados los dos archivos:
+
+RESUMEN_PROYECTO_LIGA_RURAL.md — con todo el contexto: estado actual, el bug del type="module"/window, las correcciones de datos validadas contra el diario, la duda abierta sobre categoría de jugadores, y el plan pendiente de Firebase.
+demo5_actual.html — el archivo real, 2317 líneas, la versión más reciente.
+Quedan como antecedente para este chat. Cuando quieras seguir —sea para avanzar con Firebase, tocar algún módulo (Fixture, Equipos, Goleadores, etc.), resolver la duda de categoría de jugadores, o lo que sea— lo retomamos directo desde acá sin que tengas que volver a explicar nada.
+
+Una aclaración corta sobre tus preferencias: vi que pediste que las apps web que armemos tengan respaldo en Firebase y estén configuradas como PWA. Para este proyecto puntual ya está anotado como pendiente (sección 5 del resumen) — cuando lo encaremos, sumo también la parte PWA (manifest + service worker) si todavía no está.
+
+Avisame cuando quieras arrancar.
+
+
+
+
+
+Claude es una IA y puede cometer errores.
+RESUMEN_PROYECTO_LIGA_RURAL.md
+8.12 KB•84 líneas
+•
+El formato puede ser inconsistente con la fuente
+
+# Resumen — Liga de Fútbol Rural (app web)
+
+## Cómo usar este documento
+Subí este archivo **junto con el `demo5.html` actualizado** al nuevo chat, y decile a Claude: "Este es el resumen de un chat anterior sobre mi app de la Liga de Fútbol Rural, seguimos desde acá."
+
+---
+
+## 1. Qué es el proyecto
+
+App web de gestión de una liga de fútbol rural (Torneo Jorge Oscar Romagnoli), un solo archivo HTML (`demo5.html`, ~2200+ líneas), vanilla JS + CSS, sin frameworks, bajo la marca **Elemen7** de Cristian. Actualmente usa un `mockDB` en memoria (sin backend real todavía).
+
+**Estructura:** 9 equipos (La 14, Veterano, Unión es Fuerza, Arboledas, Agrario, La 8, Defensores de Guglieri, Ibarra, Vallimanca), 2 categorías (Primera y Segunda), 2 rondas (ida y vuelta). Secciones públicas: Fixture, Posiciones, Copa, Goleadores, Suspendidos, Archivo, Institucional. Panel de Admin con login (usuario/contraseña hardcodeado `admin`/`admin` por ahora).
+
+---
+
+## 2. Estado actual — funcionalidades confirmadas y funcionando
+
+- **Fixture**: filtro por ronda y por fecha (arreglado), indicador de "Libre" por fecha calculado automáticamente, chip de sanción con nota (ícono 📝), ícono de árbitro (silbato negro dibujado en SVG, no emoji).
+- **Posiciones**: se calculan automáticamente desde los partidos jugados (`calcStats`), con soporte para sanciones administrativas puntuales (ver sección 4).
+- **Banner de sponsors**: rediseñado por completo — ya NO es un carrusel de scroll continuo (daba muchos problemas de posición/dirección/corte). Ahora muestra **grupos fijos de 4 sponsors**, con fade de transición cada 4 segundos, pausa al pasar el mouse, y si hay 4 o menos sponsors quedan quietos sin animación.
+- **Nuevo Torneo (Admin → Configuración)**: el fixture ahora se carga **100% a mano** (nunca automático) — se calculan matemáticamente la cantidad de fechas y partidos por fecha según los equipos elegidos, y se completan con selects (Local/Visitante) por partido, con validación en vivo (no repetir equipo en la misma fecha). Tilde **"Ida y vuelta"** para generar también la Ronda 2 (mismo fixture, local/visitante invertido) en el mismo paso.
+- **Panel Admin → Goleadores** (nuevo, después de Suspensiones): CRUD manual de goleadores por categoría, escribe directo en la colección `jugadores` (misma que lee la sección pública Goleadores).
+- **Panel Admin → Equipos**: ahora completo — 2 colores principales (selector de color nativo), y jugadores por categoría (Primera/Segunda) por equipo, con carga por planilla Excel o a mano. **Los colores ya se muestran en Fixture y Posiciones** (un puntito bicolor al lado del nombre del equipo).
+- **Institucional → tarjeta "Fichajes"** (pública, arriba del acordeón): botón "Lista de Buena Fe" (descarga plantilla Excel Club/Nombre/DNI pre-cargada con los equipos actuales) y botón "Fichajes" (descarga un archivo subido por el admin — PDF/Word/Excel/JPG, máx. 5MB). **Ojo:** esto vive en memoria del navegador nomás — se pierde al recargar, hasta que se conecte Firebase Storage.
+
+---
+
+## 3. ⚠️ Bug recurrente importante — para tener en cuenta a futuro
+
+El script usa `<script type="module">`. Esto significa que una función declarada como `function foo(){}` **no** queda colgada de `window`, así que cualquier `onclick="foo()"` o `onchange="foo()"` puesto directo en el HTML **no la encuentra** (tira `ReferenceError: foo is not defined` en la consola, en silencio para el usuario — el botón/filtro simplemente "no hace nada").
+
+**Este bug apareció y se repitió varias veces** (Fixture, Partidos, Suspensiones, Goleadores) porque cada función nueva hay que exponerla explícitamente. El patrón correcto que se usó para arreglarlo:
+
+```js
+function miFuncion(){ ... }         // declaración normal (funciona para llamadas internas del módulo)
+window.miFuncion = miFuncion;        // exposición aparte (para que el onclick/onchange del HTML la encuentre)
+```
+
+**Antes de dar por terminada cualquier función nueva que se llame desde un atributo `onclick`/`onchange` en el HTML, hay que exponerla a `window`.** Al final de esta sesión se corrió un script de auditoría que revisa esto automáticamente en todo el archivo (ver sección 6) — recomiendo pedirle a Claude que lo corra de nuevo después de cualquier cambio grande.
+
+---
+
+## 4. Corrección de datos reales del torneo (ya aplicada en el archivo)
+
+Se cruzaron los resultados contra notas reales del Diario La Mañana (diariolamanana.com.ar) para validar la tabla de posiciones. Se encontraron y corrigieron dos errores de carga:
+
+1. **Fecha 3 Segunda, Unión es Fuerza – Vallimanca**: el partido se jugó y se informó 2-1 a favor de UeF (así está guardado, con los goleadores reales). Pero la liga aplicó una **sanción administrativa posterior**: le dio los 3 puntos a Vallimanca y anuló los goles de ese partido para la tabla. Esto se implementó con dos campos nuevos en el registro del partido: `sancionGanador:'Vallimanca'` y `sancionAnulaGoles:true`, que `calcStats()` respeta sin tocar el resultado real ni los goleadores.
+2. Anteriormente se creía que había una sanción en **Unión es Fuerza – Veterano (Fecha 6 Segunda)** — se confirmó que **no existe tal sanción**, ese partido vale tal cual se jugó (1-0 a favor de UeF). Fue una confusión de una charla anterior.
+
+La tabla de posiciones actual (tras Fecha 8, con Fecha 9 aún pendiente de jugar) fue validada célula por célula contra el diario y coincide 100% en ambas categorías.
+
+---
+
+## 5. Pendiente — Firebase (lo próximo a encarar)
+
+Ya se habló bastante de esto pero **todavía no se implementó nada**. Decisiones ya tomadas:
+- **Login/Auth**: Firebase Authentication real (email + contraseña), reemplazando el admin/admin hardcodeado.
+- **Sincronización**: en tiempo real (varios admins viendo cambios en vivo, con `onSnapshot`).
+- Cristian **todavía no creó el proyecto de Firebase**. Se le dieron instrucciones paso a paso (crear proyecto en console.firebase.google.com, habilitar Firestore, habilitar Authentication con email/contraseña, registrar la app web y copiar el bloque `firebaseConfig`).
+
+**Dato técnico clave para cuando se implemente:** toda la capa de datos de la app pasa por 6 funciones nomás (`getAll`, `getCfg`, `setCfg`, `addItem`, `updItem`, `delItem`, más `addItems`/`delItems`/`clearAll` agregadas después para operaciones en lote) — conectar Firebase implica reescribir solo esas funciones para que hablen con Firestore en vez del array en memoria (`mockDB`), sin tocar el resto de las ~2200 líneas de UI. Bajo riesgo, cambio bien contenido.
+
+**Falta también:** migrar los datos actuales (equipos, partidos, sponsors, jugadores) a Firestore una vez conectado, para no perder lo ya cargado.
+
+---
+
+## 6. Duda abierta sin resolver
+
+**Modelo de jugadores por categoría**: originalmente se había definido que los jugadores "no tienen categoría fija" (pueden jugar en Primera o Segunda indistintamente). Al armar la edición completa de Equipos, Cristian pidió planillas separadas por categoría (Primera/Segunda) por equipo — un modelo distinto. Se implementó así (categoría fija), pero **quedó marcado explícitamente como "duda a resolver"** — Cristian puede querer volver atrás o mezclar ambos modelos. Antes de construir más cosas que dependan de este modelo (por ejemplo automatizar goleadores desde los partidos), conviene confirmar esto primero.
+
+---
+
+## 7. Otros pendientes de sesiones anteriores (memoria de largo plazo, no tocados en este chat)
+
+- Vinculación automática de goles del partido → tabla de goleadores (hoy es 100% manual, a propósito, hasta el próximo torneo).
+- Amarillas automáticas → suspensión automática (hoy las suspensiones se cargan a mano).
+- CUIT validation, exportación Excel/CSV, alertas de vencimiento, backup, reportes/gráficos — todo esto es de otro proyecto de Cristian (la app Financial/Elemen7 y Physis), no de la Liga — no confundir contextos si aparecen en la memoria de Claude.
+
+---
+
+## 8. Archivo a subir
+
+Asegurate de adjuntar el **`demo5.html` más reciente** (el de la última respuesta de este chat) al nuevo chat — sin el archivo, Claude no puede seguir editando el código real, solo re-explicar lo que ya se hizo.

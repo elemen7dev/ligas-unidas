@@ -1,0 +1,10 @@
+﻿# Se generan con empaquetar_sitio.ps1
+publicar/
+ligasunidas-sitio.zip
+# Local / herramientas
+.vercel/
+supabase/.temp/
+.claude/settings.local.json
+.env
+.env.*
+node_modules/
