@@ -18,7 +18,7 @@ Repo privado `elemen7dev/ligas-unidas`, rama `main`. Vercel (proyecto `ligasunid
 Los datos (resultados, torneos, clubes) viven en Supabase (ref `ccmkohhgcjzimakqsznl`) y se ven al instante, sin publicar.
 
 ## Reglas de trabajo
-- Después de cada cambio: commit + push, pero SIEMPRE pidiendo confirmación antes (un push a `main` publica en producción). Mostrar archivos tocados y el mensaje de commit propuesto.
+- Después de cada cambio: commit + push, pidiendo confirmación una sola vez (un push a `main` publica en producción). Mostrar archivos tocados y el mensaje de commit propuesto. La confirmación del commit autoriza también el push: no preguntar por separado.
 - No proponer otro alojamiento que Vercel ni migrar a Firebase: ya está decidido (Vercel + Supabase).
 - No crear dominios ni cobros sin que el dueño lo pida.
 - Nunca escribir contraseñas: el dueño inicia sesión él (panel, Supabase, Vercel).
