@@ -372,13 +372,13 @@ async function vistaPanelLiga(ctx, ses, perfil, slug, tab) {
     return { titulo: 'No encontrada · Panel', html: marcoPanel(ctx, ses, perfil, 'No encontrada', '<div class="vacio">La liga no existe o no tenés permisos sobre ella.<br><a href="/panel" data-link>Volver al panel</a></div>'), despues() { engancharSalir(ctx); } };
   }
   const admin = puedeAdmin(rol);
-  const tabs = [['resultados', 'Resultados'], ['suspendidos', 'Suspendidos']].concat(admin ? [['torneos', 'Torneos'], ['portada', 'Portada'], ['clubes', 'Clubes'], ['jugadores', 'Jugadores'], ['institucional', 'Institucional'], ['sponsors', 'Sponsors'], ['liga', 'Mi liga']] : []);
+  const tabs = [['resultados', 'Resultados'], ['suspendidos', 'Suspendidos']].concat(admin ? [['torneos', 'Torneos'], ['fixture', 'Fixture'], ['portada', 'Portada'], ['clubes', 'Clubes'], ['jugadores', 'Jugadores'], ['institucional', 'Institucional'], ['sponsors', 'Sponsors'], ['liga', 'Mi liga']] : []);
   const t = tab === 'nuevo' && admin ? 'nuevo' : tabs.some(([k]) => k === tab) ? tab : 'resultados';
   const base = `/panel/${encodeURIComponent(slug)}`;
   const nav = `<nav class="nav" aria-label="Secciones del panel">${tabs.map(([k, n]) => `<a href="${base}?t=${k}" data-link${t === k || (t === 'nuevo' && k === 'torneos') ? ' aria-current="page"' : ''}>${n}</a>`).join('')}</nav>`;
   const migas = `<p style="margin:0 0 8px;font-size:14px"><a href="/panel" data-link style="color:#fff">← Mis ligas</a> · <strong>${esc(liga.nombre)}</strong> · ${esc(ROL_TXT[rol] || rol)}</p>${nav}`;
   const ct = { ctx, ses, perfil, liga, rol, admin };
-  const v = t === 'portada' ? await tabPortada(ct) : t === 'jugadores' ? await tabJugadores(ct) : t === 'sponsors' ? await tabSponsors(ct) : t === 'institucional' ? await tabInstitucional(ct) : t === 'suspendidos' ? await tabSuspendidos(ct) : t === 'nuevo' ? await tabNuevoTorneo(ct) : t === 'torneos' ? await tabTorneos(ct) : t === 'clubes' ? await tabClubes(ct) : t === 'liga' ? await tabLiga(ct) : await tabResultados(ct);
+  const v = t === 'portada' ? await tabPortada(ct) : t === 'jugadores' ? await tabJugadores(ct) : t === 'sponsors' ? await tabSponsors(ct) : t === 'institucional' ? await tabInstitucional(ct) : t === 'suspendidos' ? await tabSuspendidos(ct) : t === 'nuevo' ? await tabNuevoTorneo(ct) : t === 'torneos' ? await tabTorneos(ct) : t === 'fixture' ? await tabFixture(ct) : t === 'clubes' ? await tabClubes(ct) : t === 'liga' ? await tabLiga(ct) : await tabResultados(ct);
   return {
     titulo: `${v.titulo} · ${liga.nombre} · Panel`,
     html: marcoPanel(ctx, ses, perfil, v.titulo, v.html, migas),
@@ -509,6 +509,131 @@ async function guardarPartido(fila, p, torneo) {
   msg(m, 'Guardado ✓', 'ok');
 }
 
+/* ---------- pestaña Fixture: agregar, mover y quitar partidos de un torneo existente ---------- */
+async function tabFixture(ct) {
+  const { liga } = ct;
+  const { data: torneos, error } = await sb.from('torneos').select('id,nombre,anio,estado,categorias(id,nombre,orden)').eq('liga_id', liga.id).order('anio', { ascending: false });
+  if (error) throw error;
+  if (!torneos.length) return { titulo: 'Fixture', html: '<div class="vacio">Esta liga todavía no tiene torneos.</div>' };
+  const orden = (a) => (a.estado === 'en_curso' ? 0 : a.estado === 'borrador' ? 1 : 2);
+  torneos.sort((a, b) => orden(a) - orden(b) || b.anio - a.anio);
+  const html = `<div class="controles">
+      <label class="solo-lectores" for="f-torneo">Torneo</label><select id="f-torneo">${torneos.map((t) => `<option value="${t.id}">${esc(t.nombre)} ${t.anio}${t.estado === 'finalizado' ? ' (finalizado)' : ''}</option>`).join('')}</select>
+      <label class="solo-lectores" for="f-cat">Categoría</label><select id="f-cat"></select></div>
+    <div id="f-aviso"></div>
+    <form id="f-form" class="form-tarjeta" novalidate style="margin-bottom:16px">
+      <h3 class="sub-titulo" style="font-size:22px" id="f-titulo-form">Agregar partido</h3>
+      <div class="form-fila">
+        <label class="campo">Ronda<input id="f-ronda" type="number" min="1" max="9" value="1"></label>
+        <label class="campo">Fecha<input id="f-jornada" type="number" min="1" max="99" value="1"></label>
+        <label class="campo">Local<select id="f-local"></select></label>
+        <label class="campo">Visitante<select id="f-visita"></select></label></div>
+      <div class="acciones"><button class="btn" type="submit" id="f-guardar">Agregar partido</button><button class="btn sec" type="button" id="f-cancelar" hidden>Cancelar edición</button></div>
+      <p class="msg" id="f-msg" role="status"></p></form>
+    <div id="f-lista"><p class="cargando">Cargando fixture…</p></div>`;
+  return {
+    titulo: 'Fixture',
+    html,
+    despues() {
+      const sT = $('#f-torneo'), sC = $('#f-cat'), sL = $('#f-local'), sV = $('#f-visita'), lista = $('#f-lista'), aviso = $('#f-aviso'), m = $('#f-msg');
+      let equipos = [], partidos = [], editando = null;
+      const torneoSel = () => torneos.find((t) => t.id === sT.value);
+      const nombreEq = (id) => equipos.find((e) => e.id === id)?.nombre || '—';
+      const llenarCats = () => { sC.innerHTML = torneoSel().categorias.slice().sort((a, b) => a.orden - b.orden).map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join(''); };
+      const reiniciarForm = () => {
+        editando = null;
+        $('#f-titulo-form').textContent = 'Agregar partido'; $('#f-guardar').textContent = 'Agregar partido'; $('#f-cancelar').hidden = true;
+        sL.disabled = false; sV.disabled = false;
+        const ult = partidos.reduce((a, p) => (!a || p.ronda * 1000 + p.jornada > a.ronda * 1000 + a.jornada ? p : a), null);
+        $('#f-ronda').value = ult ? ult.ronda : 1; $('#f-jornada').value = ult ? ult.jornada : 1;
+        sL.value = ''; sV.value = '';
+      };
+      const pintar = () => {
+        const t = torneoSel();
+        aviso.innerHTML = t.estado === 'finalizado' ? '<p class="aviso">Este torneo está finalizado: solo el superadmin puede modificar su fixture.</p>' : '';
+        const liga_ = partidos.filter((p) => p.tipo !== 'copa');
+        if (!liga_.length) { lista.innerHTML = '<div class="vacio">Esta categoría todavía no tiene partidos. Agregalos con el formulario de arriba.</div>'; return; }
+        const grupos = new Map();
+        liga_.forEach((p) => { const k = `${p.ronda}-${p.jornada}`; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(p); });
+        lista.innerHTML = [...grupos.values()].map((g) => `<section class="tarjeta grupo"><div class="grupo-titulo${g[0].ronda === 2 ? ' r2' : ''}"><span>Ronda ${g[0].ronda} · Fecha ${g[0].jornada}</span></div>
+          ${g.map((p) => `<div class="evento" data-id="${p.id}"><span><strong>${esc(nombreEq(p.local_equipo_id))}</strong> vs <strong>${esc(nombreEq(p.visitante_equipo_id))}</strong>
+            ${p.estado === 'jugado' ? `<em>(${p.goles_local}-${p.goles_visitante})</em>` : `<em>(${p.estado})</em>`}</span>
+            <span class="acciones"><button class="btn sec chico" data-editar>Editar</button><button class="btn sec chico" data-quitar>Quitar</button></span></div>`).join('')}</section>`).join('');
+      };
+      const cargar = async () => {
+        lista.innerHTML = '<p class="cargando">Cargando fixture…</p>';
+        const [re, rp] = await Promise.all([
+          sb.from('equipos').select('id,clubes(nombre)').eq('categoria_id', sC.value),
+          sb.from('partidos').select('id,tipo,ronda,jornada,estado,goles_local,goles_visitante,local_equipo_id,visitante_equipo_id').eq('categoria_id', sC.value).order('ronda').order('jornada').range(0, 999)]);
+        if (re.error || rp.error) { lista.innerHTML = `<div class="vacio">${esc(errTexto(re.error || rp.error))}</div>`; return; }
+        equipos = re.data.map((e) => ({ id: e.id, nombre: e.clubes?.nombre || '—' })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+        partidos = rp.data;
+        const ops = '<option value="">Elegí un club…</option>' + equipos.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+        sL.innerHTML = ops; sV.innerHTML = ops;
+        reiniciarForm(); pintar();
+      };
+      sT.addEventListener('change', async () => { llenarCats(); await cargar(); });
+      sC.addEventListener('change', cargar);
+      $('#f-cancelar').addEventListener('click', () => { reiniciarForm(); msg(m, ''); });
+
+      $('#f-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const ronda = parseInt($('#f-ronda').value, 10), jornada = parseInt($('#f-jornada').value, 10);
+        const orig = editando ? partidos.find((p) => p.id === editando) : null;
+        const local = orig && orig.estado !== 'pendiente' ? orig.local_equipo_id : sL.value;
+        const visita = orig && orig.estado !== 'pendiente' ? orig.visitante_equipo_id : sV.value;
+        if (!(ronda >= 1) || !(jornada >= 1)) return msg(m, 'Indicá la ronda y la fecha (números desde 1).', 'error');
+        if (!local || !visita) return msg(m, 'Elegí los dos clubes.', 'error');
+        if (local === visita) return msg(m, 'El local y el visitante deben ser clubes distintos.', 'error');
+        const ocupado = partidos.find((p) => p.id !== editando && p.tipo !== 'copa' && p.ronda === ronda && p.jornada === jornada
+          && [p.local_equipo_id, p.visitante_equipo_id].some((x) => x === local || x === visita));
+        if (ocupado) {
+          const quien = [ocupado.local_equipo_id, ocupado.visitante_equipo_id].find((x) => x === local || x === visita);
+          return msg(m, `${nombreEq(quien)} ya juega en la Ronda ${ronda}, Fecha ${jornada}.`, 'error');
+        }
+        const btn = $('#f-guardar'); btn.disabled = true;
+        try {
+          msg(m, 'Guardando…');
+          if (editando) {
+            const cambios = { ronda, jornada };
+            if (orig.estado === 'pendiente') { cambios.local_equipo_id = local; cambios.visitante_equipo_id = visita; }
+            const r = await sb.from('partidos').update(cambios).eq('id', editando).select('id');
+            if (r.error) return msg(m, errTexto(r.error), 'error');
+            if (!r.data?.length) return msg(m, 'No tenés permiso para modificar este partido.', 'error');
+          } else {
+            const r = await sb.from('partidos').insert({ liga_id: liga.id, torneo_id: sT.value, categoria_id: sC.value, tipo: 'liga', ronda, jornada, local_equipo_id: local, visitante_equipo_id: visita }).select('id');
+            if (r.error) return msg(m, errTexto(r.error), 'error');
+          }
+          await cargar();
+          msg(m, editando ? 'Cambios guardados ✓' : 'Partido agregado ✓', 'ok');
+        } finally { btn.disabled = false; }
+      });
+
+      lista.addEventListener('click', async (e) => {
+        const fila = e.target.closest('[data-id]');
+        if (!fila) return;
+        const p = partidos.find((x) => x.id === fila.dataset.id);
+        if (e.target.closest('[data-editar]')) {
+          editando = p.id;
+          $('#f-titulo-form').textContent = 'Editar partido'; $('#f-guardar').textContent = 'Guardar cambios'; $('#f-cancelar').hidden = false;
+          $('#f-ronda').value = p.ronda; $('#f-jornada').value = p.jornada; sL.value = p.local_equipo_id; sV.value = p.visitante_equipo_id;
+          const bloq = p.estado !== 'pendiente';   // con resultado cargado solo se puede mover de fecha
+          sL.disabled = bloq; sV.disabled = bloq;
+          msg(m, bloq ? 'Este partido ya tiene resultado o estado: solo se puede cambiar la ronda y la fecha.' : '');
+          $('#f-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (e.target.closest('[data-quitar]')) {
+          const aviso2 = p.estado === 'jugado' ? ' Ya tiene resultado: se borran también su marcador, goles y tarjetas.' : '';
+          if (!(await confirmar(`¿Quitar ${nombreEq(p.local_equipo_id)} vs ${nombreEq(p.visitante_equipo_id)} (Ronda ${p.ronda}, Fecha ${p.jornada})?${aviso2} No se puede deshacer.`, 'Quitar partido'))) return;
+          const r = await sb.from('partidos').delete().eq('id', p.id).select('id');
+          if (r.error || !r.data?.length) return msg(m, r.error ? errTexto(r.error) : 'No tenés permiso para quitar este partido.', 'error');
+          await cargar(); msg(m, 'Partido quitado ✓', 'ok');
+        }
+      });
+      llenarCats(); cargar();
+    },
+  };
+}
+
 /* ---------- goles y tarjetas de un partido ---------- */
 async function abrirEventos(ct, p, torneo) {
   const l = p.local?.clubes?.nombre || 'Local', v = p.visita?.clubes?.nombre || 'Visitante';
@@ -527,6 +652,7 @@ async function abrirEventos(ct, p, torneo) {
   document.body.appendChild(d);
   const lista = $('#ev-lista', d), resumen = $('#ev-resumen', d), sTipo = $('#ev-tipo', d), sEq = $('#ev-equipo', d), sJug = $('#ev-jug', d), nuevoW = $('#ev-nuevo-w', d), m = $('#ev-msg', d);
   let plantel = [];
+  const cargados = {};   // goles ya cargados por equipo (el que suma el gol)
 
   const cerrar = () => { d.close(); d.remove(); };
   $('#ev-cerrar', d).addEventListener('click', cerrar);
@@ -562,6 +688,7 @@ async function abrirEventos(ct, p, torneo) {
       <button class="btn sec chico" data-quitar="${e.id}" aria-label="Quitar evento">Quitar</button></div>`).join('') : '<p style="margin:0;color:var(--muted)">Todavía no hay goles ni tarjetas cargados.</p>';
     const goles = (eq) => data.filter((e) => (e.tipo === 'gol' || e.tipo === 'gol_en_contra') && e.equipo_id === eq).length;
     const gl = goles(p.local_equipo_id), gv = goles(p.visitante_equipo_id);
+    cargados[p.local_equipo_id] = gl; cargados[p.visitante_equipo_id] = gv;
     if (p.estado === 'jugado' && (gl !== p.goles_local || gv !== p.goles_visitante)) {
       resumen.hidden = false;
       resumen.textContent = `Los goles cargados (${gl}-${gv}) no coinciden con el marcador (${p.goles_local}-${p.goles_visitante}).`;
@@ -578,6 +705,12 @@ async function abrirEventos(ct, p, torneo) {
 
   $('#ev-form', d).addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (sTipo.value === 'gol' || sTipo.value === 'gol_en_contra') {
+      // El marcador manda: no se cargan más goles que los del resultado (la base también lo exige).
+      if (p.estado !== 'jugado' || p.goles_local == null || p.goles_visitante == null) return msg(m, 'Primero guardá el resultado del partido como Jugado y después cargá los goles.', 'error');
+      const max = sEq.value === p.local_equipo_id ? p.goles_local : p.goles_visitante;
+      if ((cargados[sEq.value] || 0) + 1 > max) return msg(m, `El marcador le asigna ${max} gol(es) a ${clubes[sEq.value].nombre} y ya están cargados. Corregí el resultado o quitá un gol antes de agregar otro.`, 'error');
+    }
     msg(m, 'Guardando…');
     let jugadorId = sJug.value || null;
     const club = clubDelJugador();
