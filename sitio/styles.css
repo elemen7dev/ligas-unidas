@@ -283,3 +283,91 @@ a.sp-item:hover{border-color:var(--c1)}
 @media (prefers-reduced-motion:no-preference){
   .liga-card,.pildora,.archivo-card{transition:border-color .15s,box-shadow .15s}
 }
+
+/* ===== Rediseño: profundidad, color y movimiento ===== */
+:root{--sombra-1:0 1px 2px rgba(15,27,20,.06),0 6px 18px rgba(15,27,20,.07);--sombra-2:0 2px 4px rgba(15,27,20,.08),0 16px 36px rgba(15,27,20,.16);--radio:16px;--ink2:#17291f}
+body{background:radial-gradient(900px 420px at 100% -80px,rgba(10,127,79,.13),transparent 65%),radial-gradient(700px 360px at -10% 40%,rgba(198,241,53,.10),transparent 60%),var(--bg)}
+.barra{background:linear-gradient(90deg,var(--ink),var(--ink2))}
+.cabecera{background:linear-gradient(120deg,var(--c1),color-mix(in srgb,var(--c1) 55%,var(--c2)));box-shadow:0 4px 18px rgba(15,27,20,.18);position:relative;z-index:2}
+.marca-logo{box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.marca-logo:has(img){box-shadow:none}
+.marca-nombre{text-shadow:0 2px 10px rgba(0,0,0,.2)}
+
+/* menú: subrayado que se desliza */
+.nav a{position:relative;border-bottom-color:transparent!important;transition:background .2s}
+.nav a::after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:var(--lima);transform:scaleX(0);transform-origin:left;transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.nav a:hover::after{transform:scaleX(.45)}
+.nav a[aria-current="page"]::after{transform:scaleX(1)}
+
+/* portadas */
+.portada{position:relative;overflow:hidden;border-radius:var(--radio);box-shadow:var(--sombra-2);background:radial-gradient(520px 280px at 100% 0%,rgba(198,241,53,.24),transparent 70%),linear-gradient(135deg,color-mix(in srgb,var(--c2) 88%,#fff 0%),color-mix(in srgb,var(--c2) 62%,#000))}
+.portada>*{position:relative;z-index:1}
+.portada::before,.directorio-hero::before{content:"";position:absolute;right:-90px;top:-90px;width:320px;height:320px;border-radius:50%;border:2px solid rgba(255,255,255,.14);box-shadow:0 0 0 44px rgba(255,255,255,.035),0 0 0 46px rgba(255,255,255,.1);pointer-events:none}
+.portada::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:linear-gradient(90deg,var(--lima),transparent 70%)}
+.portada h1,.directorio-hero h1{text-shadow:0 3px 24px rgba(0,0,0,.28)}
+.directorio-hero{position:relative;overflow:hidden;background:radial-gradient(700px 340px at 85% 0%,rgba(198,241,53,.22),transparent 70%),linear-gradient(135deg,var(--c2),color-mix(in srgb,var(--c2) 60%,#000))}
+.directorio-hero::before{right:-120px;top:-140px;width:460px;height:460px}
+.directorio-hero .contenedor{position:relative;z-index:1}
+.buscador input{box-shadow:0 8px 24px rgba(0,0,0,.22);transition:box-shadow .2s,transform .2s}
+.buscador input:focus{transform:translateY(-1px);box-shadow:0 12px 30px rgba(0,0,0,.3)}
+
+/* tarjetas */
+.tarjeta,.liga-card,.archivo-card,.fx-fecha,details.acordeon,.form-tarjeta,.vacio{border-radius:var(--radio)}
+.tarjeta,.liga-card,.archivo-card,details.acordeon{border-color:rgba(15,27,20,.06);box-shadow:var(--sombra-1)}
+.tarjeta-titulo,.grupo-titulo{background:linear-gradient(90deg,var(--ink),var(--ink2))}
+.tarjeta-titulo.verde,.grupo-titulo{background:linear-gradient(90deg,var(--c1),color-mix(in srgb,var(--c1) 60%,var(--c2)))}
+.grupo-titulo.r2{background:linear-gradient(90deg,var(--c2),color-mix(in srgb,var(--c2) 70%,#000))}
+.liga-card-cab{background-image:linear-gradient(135deg,rgba(255,255,255,.12),rgba(0,0,0,.18))}
+.liga-card-cab .marca-logo{box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.etiqueta.lima{box-shadow:0 2px 10px rgba(198,241,53,.35)}
+
+/* tablas y partidos */
+.tabla tbody tr:hover td{background:#F1F7F3}
+.tabla-pos tbody tr:hover td:nth-child(-n+2){background:#F1F7F3}
+.tabla tr.lider td:first-child{box-shadow:inset 4px 0 0 var(--lima)}
+.tabla tr.lider td.pts{color:var(--c2)}
+.marcador{background:linear-gradient(180deg,var(--ink2),var(--ink));box-shadow:inset 0 -2px 0 rgba(198,241,53,.4)}
+.partido:hover{background:#F8FAF8}
+.escudo{box-shadow:0 0 0 2px #fff,0 1px 5px rgba(0,0,0,.22)}
+.resultado{background:#fff;box-shadow:var(--sombra-1);border-color:transparent}
+.tira,.escudos{scroll-snap-type:x proximity;padding:4px 2px 8px}
+.tira>*,.escudos>*{scroll-snap-align:start}
+.pildora{box-shadow:var(--sombra-1)}
+.pildora[aria-current="true"]{box-shadow:0 6px 16px rgba(15,27,20,.25)}
+.btn{box-shadow:0 1px 2px rgba(15,27,20,.15)}
+
+/* carga con esqueleto */
+.esqueleto{min-height:100vh}
+.esq-cab{height:140px;background:linear-gradient(120deg,var(--c1),var(--c2))}
+.esq-cuerpo{max-width:1160px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:20px}
+.esq-bloque{height:96px;border-radius:var(--radio);background:#E3E8E4}
+.esq-bloque.g{height:260px}
+
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  .pagina,.esqueleto{animation:entrarPagina .4s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes entrarPagina{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .portada::before,.directorio-hero::before{animation:flotar 16s ease-in-out infinite}
+  @keyframes flotar{50%{transform:translate(-18px,12px) scale(1.05)}}
+  .portada h1,.directorio-hero h1{animation:subir .7s .1s cubic-bezier(.2,.8,.2,1) both}
+  .portada p,.directorio-hero p,.buscador{animation:subir .7s .25s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes subir{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+  .liga-card,.archivo-card,.tarjeta,.pildora,.btn,.resultado,.partido,.tabla td{transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .15s,filter .15s,background .15s}
+  .liga-card:hover,.archivo-card:hover{transform:translateY(-4px);box-shadow:var(--sombra-2)}
+  .liga-card .marca-logo{transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  .liga-card:hover .marca-logo{transform:scale(1.1) rotate(-4deg)}
+  .liga-card .entrar{display:inline-block;transition:transform .25s}
+  .liga-card:hover .entrar{transform:translateX(6px)}
+  .pildora:hover,.resultado:hover,.btn:hover{transform:translateY(-2px)}
+  .btn:active,.pildora:active{transform:scale(.97)}
+  .escudo{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+  .escudo-item:hover .escudo{transform:scale(1.18) rotate(-6deg)}
+  .esq-bloque,.esq-cab{background-size:200% 100%;animation:brillo 1.4s linear infinite}
+  .esq-bloque{background-image:linear-gradient(90deg,#E3E8E4 25%,#F1F4F2 50%,#E3E8E4 75%)}
+  @keyframes brillo{to{background-position:-200% 0}}
+  /* aparición al hacer scroll (la clase .rev la pone app.js) */
+  .rev{opacity:0;transform:translateY(22px)}
+  .rev.visto{opacity:1;transform:none;transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*70ms)}
+  .rev.visto.tarjeta:hover,.rev.visto.liga-card:hover,.rev.visto.archivo-card:hover{transition-delay:0s}
+}
+@media print{.rev{opacity:1!important;transform:none!important}}

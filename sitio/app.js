@@ -137,6 +137,7 @@ async function dibujar() {
     if (vista.despues) vista.despues();
     iniciarRotacion();
     iniciarNav();
+    animarEntrada($app);
     if (_foco) { _foco = false; document.getElementById('contenido')?.focus({ preventScroll: true }); }
   } catch (err) {
     if (mi !== _gen) return;
@@ -321,6 +322,31 @@ function iniciarRotacion() {
   cont.addEventListener('focusin', () => { pausa = true; });
   cont.addEventListener('focusout', () => { pausa = false; });
   _rot = setInterval(() => { if (pausa || document.hidden) return; g = (g + 1) % grupos; pintar(); }, 5000);
+}
+
+// Aparición al hacer scroll: los bloques entran escalonados al verse. Sin IntersectionObserver o con "menos movimiento", no se anima nada.
+const _selEntrada = '.portada,.tarjeta,.liga-card,.archivo-card,.caja-vacia,.fx-fecha,details.acordeon,.copa-cruce,.estado-torneo,.tabla tbody tr,.partido';
+let _obsEntrada = null;
+function animarEntrada(raiz) {
+  if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!_obsEntrada) {
+    _obsEntrada = new IntersectionObserver((es) => es.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      _obsEntrada.unobserve(el);
+      el.classList.add('visto');
+      // al terminar, se quita la clase para no pisar las transiciones de hover del elemento
+      const limpiar = (ev) => { if (ev.propertyName !== 'transform') return; el.removeEventListener('transitionend', limpiar); el.classList.remove('rev', 'visto'); el.style.removeProperty('--i'); };
+      el.addEventListener('transitionend', limpiar);
+    }), { threshold: 0.06, rootMargin: '0px 0px -24px 0px' });
+  }
+  raiz.querySelectorAll(_selEntrada).forEach((el) => {
+    if (el.classList.contains('rev')) return;
+    const i = [...el.parentElement.children].indexOf(el);
+    el.style.setProperty('--i', Math.min(i, 8));
+    el.classList.add('rev');
+    _obsEntrada.observe(el);
+  });
 }
 
 // Menú de la liga en móvil: centra la sección activa y muestra un degradado donde hay más pestañas para deslizar.
@@ -583,7 +609,7 @@ async function seccionFixture(L, cat) {
       const sr = document.getElementById('f-ronda'), sf = document.getElementById('f-fecha'), lista = document.getElementById('f-lista');
       sr.value = rondaIni;
       sf.value = fechaIni;
-      const pintar = () => { lista.innerHTML = htmlFixtureLista(L, pc, pos, sr.value, sf.value); };
+      const pintar = () => { lista.innerHTML = htmlFixtureLista(L, pc, pos, sr.value, sf.value); animarEntrada(lista); };
       sr.addEventListener('change', () => { sf.innerHTML = opcionesFecha(sr.value); sf.value = 'todas'; pintar(); });
       sf.addEventListener('change', pintar);
     },
