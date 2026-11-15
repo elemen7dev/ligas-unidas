@@ -435,7 +435,7 @@ async function tabResultados(ct) {
         if (!ps.length) { lista.innerHTML = '<div class="vacio">No hay partidos para ese filtro.</div>'; return; }
         const grupos = new Map();
         ps.forEach((p) => { const k = `${p.tipo}-${p.ronda}-${p.jornada}`; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(p); });
-        lista.innerHTML = [...grupos.values()].map((g) => `<section class="tarjeta grupo"><div class="grupo-titulo${g[0].tipo === 'copa' || g[0].ronda === 2 ? ' r2' : ''}"><span>${g[0].tipo === 'copa' ? 'Copa Desafío · La final' : `Ronda ${g[0].ronda} · Fecha ${g[0].jornada}`}</span></div>
+        lista.innerHTML = [...grupos.values()].map((g) => `<section class="tarjeta grupo"><div class="grupo-titulo${g[0].tipo === 'copa' || g[0].ronda === 2 ? ' r2' : ''}"><span>${g[0].tipo === 'copa' ? `Copa Desafío · ${g[0].ronda === 2 ? 'La final' : 'Semifinal ' + g[0].jornada}` :`Ronda ${g[0].ronda} · Fecha ${g[0].jornada}`}</span></div>
           ${g.map((p) => filaPartido(p)).join('')}</section>`).join('');
       };
       const cargar = async (porDefecto) => {
@@ -512,7 +512,7 @@ async function guardarPartido(fila, p, torneo) {
 /* ---------- pestaña Fixture: agregar, mover y quitar partidos de un torneo existente ---------- */
 async function tabFixture(ct) {
   const { liga } = ct;
-  const { data: torneos, error } = await sb.from('torneos').select('id,nombre,anio,estado,categorias(id,nombre,orden)').eq('liga_id', liga.id).order('anio', { ascending: false });
+  const { data: torneos, error } = await sb.from('torneos').select('id,nombre,anio,estado,copa_desafio,categorias(id,nombre,orden)').eq('liga_id', liga.id).order('anio', { ascending: false });
   if (error) throw error;
   if (!torneos.length) return { titulo: 'Fixture', html: '<div class="vacio">Esta liga todavía no tiene torneos.</div>' };
   const orden = (a) => (a.estado === 'en_curso' ? 0 : a.estado === 'borrador' ? 1 : 2);
@@ -530,7 +530,17 @@ async function tabFixture(ct) {
         <label class="campo">Visitante<select id="f-visita"></select></label></div>
       <div class="acciones"><button class="btn" type="submit" id="f-guardar">Agregar partido</button><button class="btn sec" type="button" id="f-cancelar" hidden>Cancelar edición</button></div>
       <p class="msg" id="f-msg" role="status"></p></form>
-    <div id="f-lista"><p class="cargando">Cargando fixture…</p></div>`;
+    <div id="f-lista"><p class="cargando">Cargando fixture…</p></div>
+    <div class="form-tarjeta" id="c-bloque" style="margin-top:20px" hidden>
+      <h3 class="sub-titulo" style="font-size:22px">Copa Desafío</h3>
+      <p style="margin:0;font-size:13px;color:var(--muted)">Se carga a mano cuando termina el torneo. Hasta entonces el sitio muestra los duelos "a confirmar". El resultado y los penales se cargan en Resultados.</p>
+      <form id="c-form" novalidate><div class="form-fila">
+        <label class="campo">Fase<select id="c-fase"><option value="1">Semifinal</option><option value="2">Final</option></select></label>
+        <label class="campo">Local<select id="c-local"></select></label>
+        <label class="campo">Visitante<select id="c-visita"></select></label></div>
+        <div class="acciones"><button class="btn" type="submit" id="c-agregar">Agregar partido de Copa</button></div>
+        <p class="msg" id="c-msg" role="status"></p></form>
+      <div id="c-lista"></div></div>`;
   return {
     titulo: 'Fixture',
     html,
@@ -544,13 +554,23 @@ async function tabFixture(ct) {
         editando = null;
         $('#f-titulo-form').textContent = 'Agregar partido'; $('#f-guardar').textContent = 'Agregar partido'; $('#f-cancelar').hidden = true;
         sL.disabled = false; sV.disabled = false;
-        const ult = partidos.reduce((a, p) => (!a || p.ronda * 1000 + p.jornada > a.ronda * 1000 + a.jornada ? p : a), null);
+        const ult = partidos.filter((p) => p.tipo !== 'copa').reduce((a, p) => (!a || p.ronda * 1000 + p.jornada > a.ronda * 1000 + a.jornada ? p : a), null);
         $('#f-ronda').value = ult ? ult.ronda : 1; $('#f-jornada').value = ult ? ult.jornada : 1;
         sL.value = ''; sV.value = '';
+      };
+      const FASES = { 1: 'Semifinal', 2: 'Final' };
+      const pintarCopa = () => {
+        const t = torneoSel();
+        $('#c-bloque').hidden = !t.copa_desafio;
+        if (!t.copa_desafio) return;
+        const cs = partidos.filter((p) => p.tipo === 'copa').sort((a, b) => a.ronda - b.ronda || a.jornada - b.jornada);
+        $('#c-lista').innerHTML = cs.length ? cs.map((p) => `<div class="evento" data-copa="${p.id}"><span><strong>${FASES[p.ronda] || 'Copa'}</strong> — ${esc(nombreEq(p.local_equipo_id))} vs ${esc(nombreEq(p.visitante_equipo_id))}${p.estado === 'jugado' ? ` <em>(${p.goles_local}-${p.goles_visitante})</em>` : ''}</span>
+          <button class="btn sec chico" data-quitar-copa>Quitar</button></div>`).join('') : '<p style="margin:8px 0 0;color:var(--muted)">Todavía no hay partidos de Copa cargados.</p>';
       };
       const pintar = () => {
         const t = torneoSel();
         aviso.innerHTML = t.estado === 'finalizado' ? '<p class="aviso">Este torneo está finalizado: solo el superadmin puede modificar su fixture.</p>' : '';
+        pintarCopa();
         const liga_ = partidos.filter((p) => p.tipo !== 'copa');
         if (!liga_.length) { lista.innerHTML = '<div class="vacio">Esta categoría todavía no tiene partidos. Agregalos con el formulario de arriba.</div>'; return; }
         const grupos = new Map();
@@ -569,7 +589,7 @@ async function tabFixture(ct) {
         equipos = re.data.map((e) => ({ id: e.id, nombre: e.clubes?.nombre || '—' })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
         partidos = rp.data;
         const ops = '<option value="">Elegí un club…</option>' + equipos.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
-        sL.innerHTML = ops; sV.innerHTML = ops;
+        sL.innerHTML = ops; sV.innerHTML = ops; $('#c-local').innerHTML = ops; $('#c-visita').innerHTML = ops;
         reiniciarForm(); pintar();
       };
       sT.addEventListener('change', async () => { llenarCats(); await cargar(); });
@@ -607,6 +627,34 @@ async function tabFixture(ct) {
           await cargar();
           msg(m, editando ? 'Cambios guardados ✓' : 'Partido agregado ✓', 'ok');
         } finally { btn.disabled = false; }
+      });
+
+      // Copa: partidos cargados a mano (ronda 1 = semifinal, ronda 2 = final)
+      $('#c-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const mc = $('#c-msg'), fase = parseInt($('#c-fase').value, 10), local = $('#c-local').value, visita = $('#c-visita').value;
+        if (!local || !visita) return msg(mc, 'Elegí los dos clubes.', 'error');
+        if (local === visita) return msg(mc, 'El local y el visitante deben ser clubes distintos.', 'error');
+        const previos = partidos.filter((p) => p.tipo === 'copa' && p.ronda === fase);
+        if (fase === 2 && previos.length) return msg(mc, 'Ya hay una final cargada en esta categoría.', 'error');
+        if (fase === 1 && previos.length >= 2) return msg(mc, 'Ya hay dos semifinales cargadas en esta categoría.', 'error');
+        const btn = $('#c-agregar'); btn.disabled = true;
+        try {
+          msg(mc, 'Guardando…');
+          const r = await sb.from('partidos').insert({ liga_id: liga.id, torneo_id: sT.value, categoria_id: sC.value, tipo: 'copa', ronda: fase, jornada: previos.length + 1, local_equipo_id: local, visitante_equipo_id: visita }).select('id');
+          if (r.error) return msg(mc, errTexto(r.error), 'error');
+          await cargar();
+          msg($('#c-msg'), 'Partido de Copa agregado ✓', 'ok');
+        } finally { btn.disabled = false; }
+      });
+      $('#c-lista').addEventListener('click', async (e) => {
+        const fila = e.target.closest('[data-copa]');
+        if (!fila || !e.target.closest('[data-quitar-copa]')) return;
+        const p = partidos.find((x) => x.id === fila.dataset.copa);
+        if (!(await confirmar(`¿Quitar ${nombreEq(p.local_equipo_id)} vs ${nombreEq(p.visitante_equipo_id)} de la Copa?${p.estado === 'jugado' ? ' Ya tiene resultado: se borran también su marcador, goles y tarjetas.' : ''} No se puede deshacer.`, 'Quitar partido'))) return;
+        const r = await sb.from('partidos').delete().eq('id', p.id).select('id');
+        if (r.error || !r.data?.length) return msg($('#c-msg'), r.error ? errTexto(r.error) : 'No tenés permiso para quitar este partido.', 'error');
+        await cargar(); msg($('#c-msg'), 'Partido quitado ✓', 'ok');
       });
 
       lista.addEventListener('click', async (e) => {
@@ -1976,23 +2024,9 @@ async function tabTorneos(ct) {
   const { liga, perfil, ctx } = ct;
   const { data: torneos, error } = await sb.from('torneos').select('id,nombre,anio,estado,cerrado_en,resumen,copa_desafio').eq('liga_id', liga.id).order('anio', { ascending: false });
   if (error) throw error;
-  const rc = await sb.from('copa_desafio').select('*').eq('liga_id', liga.id).order('orden');
-  const copas = rc.data || [];
-  // Copa Desafío: final entre el líder de la Ronda 1 y el líder de la Ronda 2 (por categoría)
-  const bloqueCopa = (t) => {
-    if (!t.copa_desafio || t.estado === 'borrador') return '';
-    const filas = copas.filter((c) => c.torneo_id === t.id).map((c) => {
-      const pend = c.r1_pendientes + c.r2_pendientes;
-      let estado, boton = '';
-      if (c.final_partido_id) estado = `La final ya está cargada${c.final_estado === 'jugado' ? ` (${esc(c.final_local)} ${c.final_goles_local}-${c.final_goles_visitante} ${esc(c.final_visitante)}${c.final_ganador ? ' · ganó ' + esc(c.final_ganador) : ''})` : ' (pendiente)'}. Se carga en Resultados.`;
-      else if (c.r1_club && c.r2_club && c.r1_club === c.r2_club) estado = `${esc(c.r1_club)} lidera las dos rondas: no hay final.`;
-      else if (c.r1_club && c.r2_club) { estado = `${esc(c.r1_club)} (${c.r1_pts} pts) vs ${esc(c.r2_club)} (${c.r2_pts} pts)${pend ? ` · faltan ${pend} partidos de liga` : ''}`; boton = '<button class="btn chico" data-crear-final>Crear la final</button>'; }
-      else estado = `Líder Ronda 1: ${esc(c.r1_club || 'sin definir')} · Líder Ronda 2: ${esc(c.r2_club || 'sin definir')}. La final se arma cuando las dos rondas tienen líder.`;
-      return `<div class="evento" data-cat="${c.categoria_id}"><span><strong>${esc(c.categoria)}</strong> — ${estado}<span class="msg" role="status" style="display:block"></span></span>${boton}</div>`;
-    }).join('');
-    return `<div class="form-tarjeta" style="margin-top:16px"><h3 class="sub-titulo" style="font-size:22px">Copa Desafío · ${esc(t.nombre)}</h3>
-      <p style="margin:0;font-size:13px;color:var(--muted)">Final entre el líder de la Ronda 1 y el líder de la Ronda 2. El campeón del torneo es aparte: el que más puntos suma en total.</p>${filas || '<p style="margin:0">Sin categorías.</p>'}</div>`;
-  };
+  // La Copa Desafío se carga a mano (semifinales y final), al terminar el torneo, en la pestaña Fixture.
+  const bloqueCopa = (t) => (!t.copa_desafio || t.estado === 'borrador' ? '' : `<div class="form-tarjeta" style="margin-top:16px"><h3 class="sub-titulo" style="font-size:22px">Copa Desafío · ${esc(t.nombre)}</h3>
+      <p style="margin:0;font-size:13px;color:var(--muted)">Los cruces de la Copa se cargan a mano cuando termina el torneo, desde la pestaña <a href="/panel/${encodeURIComponent(liga.slug)}?t=fixture" data-link>Fixture</a> (semifinales y final). Hasta entonces el sitio muestra los duelos "a confirmar".</p></div>`);
   const tarjeta = (t) => {
     const camp = (t.resumen?.categorias || []).filter((c) => c.campeon).map((c) => `<span class="chip verde">${esc(c.nombre)}: ${esc(c.campeon.club)}</span>`).join('');
     const estado = { borrador: 'Borrador', en_curso: 'En curso', finalizado: 'Finalizado' }[t.estado];
@@ -2010,18 +2044,6 @@ async function tabTorneos(ct) {
       <div id="copa-admin">${torneos.map(bloqueCopa).join('')}</div>
       <p style="font-size:13px;color:var(--muted)">Al cerrar un torneo se guarda el campeón, la tabla final, los goleadores y el resultado de la Copa en el archivo público. Después solo el superadmin puede modificarlo.</p>`,
     despues() {
-      const cont = $('#copa-admin');
-      if (cont) cont.addEventListener('click', async (e) => {
-        const b = e.target.closest('[data-crear-final]');
-        if (!b) return;
-        const fila = b.closest('[data-cat]'), c = copas.find((x) => x.categoria_id === fila.dataset.cat), m = $('.msg', fila);
-        const pend = c.r1_pendientes + c.r2_pendientes;
-        if (pend > 0 && !(await confirmar(`Todavía faltan ${pend} partidos de liga: los líderes de cada ronda pueden cambiar. ¿Crear la final igual?`, 'Crear igual'))) return;
-        b.disabled = true;
-        const { error: err } = await sb.from('partidos').insert({ liga_id: liga.id, torneo_id: c.torneo_id, categoria_id: c.categoria_id, tipo: 'copa', ronda: 1, jornada: 1, local_equipo_id: c.r1_equipo_id, visitante_equipo_id: c.r2_equipo_id });
-        if (err) { b.disabled = false; return msg(m, err.code === '23505' ? 'La final ya está creada.' : errTexto(err), 'error'); }
-        ctx.redibujar();
-      });
       document.querySelectorAll('[data-accion]').forEach((b) => b.addEventListener('click', async () => {
         const fila = b.closest('[data-torneo]'), id = fila.dataset.torneo, m = $('.msg', fila);
         b.disabled = true;

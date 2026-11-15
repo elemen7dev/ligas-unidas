@@ -3,7 +3,11 @@
 Liga de Fútbol Rural (Fútbol Rural Recreativo, Bolívar). Las notas son de la edición 2026
 (en la base el torneo figura como año 2025). Ronda 2 = fechas 10 a 18 de las notas
 (Ronda 2, Fecha 1 a 9 en el panel). Formato: LOCAL goles - goles VISITANTE.
-Estado: **solo investigación, nada cargado en la base todavía.**
+Estado: **cargados en la base 61 de 72 partidos y sus goleadores** (faltan: fecha 8 completa, y 3 partidos de Primera con
+puntos administrativos o suspendidos). Conflicto abierto: Segunda, fecha 6, Ibarra - La 8: Presente Noticias dice 4-0 (es lo
+cargado) y Diario La Mañana dice 3-0 (goles de José Lorenzo x2 y Gianfranco Calloni); sin goleadores cargados. Segunda, fecha 4,
+Veterano - Agrario (1-2): falta el segundo gol de Agrario en las notas. Primera, fecha 6, Ibarra 3 - 4 La 8: Diario La Mañana
+informa que fue suspendido con La 8 ganando 4-3 y que la resolución se daría esa semana.
 
 Fuentes: Presente Noticias (presentenoticias.com), Diario La Mañana (diariolamanana.com.ar).
 
@@ -91,12 +95,22 @@ Segunda
 - Unión es Fuerza 4-0 Defensores de Guglieri
 - Arboledas 1-3 Veterano
 
-## Fecha 8 (nota: fecha 17) — libre: Veterano  ❌ NO SE ENCONTRARON LOS MARCADORES
-Cruces (la nota no aclara división; son los mismos en Primera y Segunda): Defensores de Guglieri - Arboledas,
-La 14 - Unión es Fuerza, Ibarra - Vallimanca, La 8 - Agrario.
-Solo se puede deducir quién ganó con las tablas (NO son marcadores):
-- Primera: ganó Guglieri; empataron La 14 y Unión es Fuerza; ganó Ibarra; ganó Agrario.
-- Segunda: ganó Arboledas; ganó La 14; ganó Ibarra; ganó Agrario.
+## Fecha 8 (nota: fecha 17) — libre: Veterano  ✅ cargada (Presente Noticias, 28/09/2026)
+Primera
+- Defensores de Guglieri 2-1 Arboledas
+- La 14 2-2 Unión es Fuerza
+- Ibarra 3-0 Vallimanca
+- La 8 2-4 Agrario
+Segunda
+- Defensores de Guglieri 0-2 Arboledas
+- La 14 1-0 Unión es Fuerza
+- Ibarra 4-3 Vallimanca
+- La 8 0-1 Agrario
+
+## Copa Desafío 2026 (domingo 25/10/2026, cancha de Ibarra) — NO cargada todavía
+- Primera: Unión es Fuerza 2-1 Veterano (Ignacio Díaz, Braian Guisolfo; Silvio Altavista).
+- Segunda: La 14 1-0 Ibarra (gol de "Valerio Alfonso" según las dos notas).
+- Ojo: no coincide con la regla del sitio (final entre líder de Ronda 1 y líder de Ronda 2): en Primera La 14 lideró las dos rondas.
 
 ## Fecha 9 (nota: fecha 18) — libre: Agrario
 Primera

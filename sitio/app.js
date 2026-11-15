@@ -448,11 +448,22 @@ async function seccionInicio(L, cat) {
   const jug = pos.filter((p) => p.pj > 0);
   const lider = jug[0];
   const resCat = t.estado === 'finalizado' && L.resumen ? (L.resumen.categorias || []).find((c) => c.nombre === cat.nombre) : null;
+  // Con el fixture completo (todos los partidos de liga jugados o resueltos por sanción) la portada proclama al campeón.
+  const fixtureCompleto = pc.length > 0 && pc.every((p) => p.estado === 'jugado' || p.ajuste_ganador_equipo_id);
+  const filaCamp = (resCat && resCat.campeon && pos.find((p) => p.club === resCat.campeon.club)) || lider;
+  const estadisticaDe = (f) => `Suma ${f.g} ${f.g === 1 ? 'victoria' : 'victorias'} y ${f.e} ${f.e === 1 ? 'empate' : 'empates'} en ${f.pj} partidos${f.p === 0 ? ' y terminó invicto' : ''}.`;
   let etiqueta = esc(cat.nombre), titular, bajada;
-  if (resCat && resCat.campeon) {
-    etiqueta += ' · Torneo finalizado';
-    titular = `${esc(resCat.campeon.club)}<br>campeón`;
-    bajada = `Terminó primero con ${resCat.campeon.pts} puntos.`;
+  if (filaCamp && (fixtureCompleto || (resCat && resCat.campeon))) {
+    etiqueta += t.estado === 'finalizado' ? ' · Torneo finalizado' : ' · Fixture completo';
+    const segundo = pos[1];
+    const empatados = !resCat?.campeon && segundo && segundo.pts === lider.pts && segundo.dif === lider.dif && segundo.gf === lider.gf;
+    if (empatados) {
+      titular = `${esc(lider.club)} y ${esc(segundo.club)}<br>igualados en la cima`;
+      bajada = `Ambos suman ${lider.pts} puntos, con la misma diferencia de gol y goles a favor. Se define por desempate.`;
+    } else {
+      titular = `${esc(filaCamp.club)}<br>se consagra campeón del torneo`;
+      bajada = estadisticaDe(filaCamp);
+    }
   } else if (lider) {
     const inv = lider.p === 0 ? ' y sigue invicto' : '';
     titular = `${esc(lider.club)} lidera<br>con ${lider.pts} puntos`;
@@ -690,52 +701,46 @@ async function seccionInstitucional(L) {
   return { titulo: 'Institucional', html: marco(L, 'institucional', null, cuerpo) };
 }
 
-/* Copa Desafío: final entre el líder de la Ronda 1 y el líder de la Ronda 2. El campeón del torneo es aparte (puntaje acumulado). */
+/* Copa Desafío: se carga a mano al terminar el torneo (semifinales y final).
+   Mientras no haya partidos cargados, los duelos figuran "a confirmar". Ronda 1 = semifinal, ronda 2 = final. */
 async function seccionCopa(L, cat) {
   const t = L.actual;
   if (!t || !cat) return sinTorneo(L, 'copa', 'Copa');
-  const [copas, posAll] = await Promise.all([
-    memo('copa:' + t.id, async () => {
-      const { data, error } = await sb.from('copa_desafio').select('*').eq('torneo_id', t.id);
-      if (error) throw error;
-      return data;
-    }),
-    cargarPosiciones(t.id),
-  ]);
-  const c = copas.find((x) => x.categoria_id === cat.id);
-  const equipo = (nombre, escudoUrl, rotulo, pts) => `<div class="copa-equipo">${escudo({ nombre, escudo_url: escudoUrl }, 'g')}<div><div class="copa-nombre">${esc(nombre)}</div><div class="copa-rotulo">${esc(rotulo)}${pts != null ? ` · ${pts} pts` : ''}</div></div></div>`;
-  const pend = (n) => (n > 0 ? ` (${n} ${n === 1 ? 'partido pendiente' : 'partidos pendientes'})` : '');
+  const partidos = await cargarPartidos(t.id);
+  const copa = partidos.filter((p) => p.categoria_id === cat.id && p.tipo === 'copa');
 
-  let finalistas;
-  if (!c) finalistas = '<div class="vacio">Sin torneo activo.</div>';
-  else if (c.r1_club && c.r2_club && c.r1_club !== c.r2_club) {
-    finalistas = `<div class="copa-cruce">${equipo(c.r1_club, c.r1_escudo, 'Líder Ronda 1' + pend(c.r1_pendientes), c.r1_pts)}<span class="vs">VS</span>${equipo(c.r2_club, c.r2_escudo, 'Líder Ronda 2' + pend(c.r2_pendientes), c.r2_pts)}</div>`;
-  } else if (c.r1_club && c.r2_club) {
-    finalistas = `<div class="aviso" style="margin:0">${esc(c.r1_club)} lidera las dos rondas, así que no hace falta final: es el campeón de la Copa.</div>`;
-  } else if (c.r1_club) {
-    finalistas = `<div class="copa-cruce">${equipo(c.r1_club, c.r1_escudo, 'Líder Ronda 1' + pend(c.r1_pendientes), c.r1_pts)}<span class="vs">VS</span><div class="copa-equipo"><span class="escudo g" aria-hidden="true">?</span><div><div class="copa-nombre" style="color:var(--muted)">A definir</div><div class="copa-rotulo">Pendiente Ronda 2</div></div></div></div>`;
-  } else finalistas = '<div class="vacio">Los finalistas se definirán cuando avancen las rondas.</div>';
-
-  let final = '';
-  if (c?.final_partido_id) {
-    const jugado = c.final_estado === 'jugado';
-    final = `<div class="partido" style="border-top:1px solid var(--suave)"><div class="partido-fila"><span class="eq l"><span>${esc(c.final_local)}</span>${escudo({ nombre: c.final_local, escudo_url: c.final_local_escudo })}</span>
-        ${jugado ? `<span class="marcador">${c.final_goles_local}-${c.final_goles_visitante}</span>` : '<span class="marcador pend">vs</span>'}
-        <span class="eq v">${escudo({ nombre: c.final_visitante, escudo_url: c.final_visitante_escudo })}<span>${esc(c.final_visitante)}</span></span></div>
-        <div class="partido-meta">La final · ${esc(fmtFecha(c.final_fecha_hora))}</div>
-        ${jugado && c.final_ganador ? `<div class="partido-aviso" style="background:#E3F4EA;color:#0A5C38"><strong>Campeón de la Copa: ${esc(c.final_ganador)}</strong>${c.final_por_penales ? ' (por penales)' : ''}</div>` : ''}</div>`;
-  }
-
-  const resCat = t.estado === 'finalizado' && L.resumen ? (L.resumen.categorias || []).find((x) => x.nombre === cat.nombre) : null;
-  const lider = posAll.filter((p) => p.categoria_id === cat.id).sort(ordenTabla)[0];
-  const campeon = resCat?.campeon ? { club: resCat.campeon.club, pts: resCat.campeon.pts } : (lider && lider.pj > 0 ? { club: lider.club, pts: lider.pts, pj: lider.pj, g: lider.g, e: lider.e, p: lider.p } : null);
+  const ganadorDe = (p) => {
+    if (p.estado !== 'jugado') return null;
+    if (p.goles_local > p.goles_visitante) return p.local?.clubes?.nombre;
+    if (p.goles_local < p.goles_visitante) return p.visita?.clubes?.nombre;
+    if (p.ajuste_ganador_equipo_id) return p.ajuste_ganador_equipo_id === p.local_equipo_id ? p.local?.clubes?.nombre : p.visita?.clubes?.nombre;
+    return null;
+  };
+  const pendiente = (txt) => `<span style="color:var(--muted)">${txt}</span>`;
+  const aConfirmar = () => `<div class="partido"><div class="partido-fila"><span class="eq l">${pendiente('A confirmar')}<span class="escudo g" aria-hidden="true">?</span></span>
+      <span class="marcador pend">vs</span><span class="eq v"><span class="escudo g" aria-hidden="true">?</span>${pendiente('A confirmar')}</span></div></div>`;
+  const filaCopa = (p, esFinal) => {
+    const l = p.local?.clubes, v = p.visita?.clubes, jugado = p.estado === 'jugado';
+    const gan = esFinal ? ganadorDe(p) : null;
+    const penales = jugado && p.goles_local === p.goles_visitante && p.ajuste_ganador_equipo_id;
+    const meta = [fmtFecha(p.fecha_hora), p.cancha].filter(Boolean).join(' · ');
+    return `<div class="partido"><div class="partido-fila"><span class="eq l"><span>${esc(l?.nombre)}</span>${escudo(l)}</span>
+        ${jugado ? `<span class="marcador">${p.goles_local}-${p.goles_visitante}</span>` : '<span class="marcador pend">vs</span>'}
+        <span class="eq v">${escudo(v)}<span>${esc(v?.nombre)}</span></span></div>
+        ${meta ? `<div class="partido-meta">${esc(meta)}</div>` : ''}
+        ${penales && !esFinal ? `<div class="partido-aviso"><strong>Pasó por penales: ${esc(ganadorDe(p))}.</strong></div>` : ''}
+        ${gan ? `<div class="partido-aviso" style="background:#E3F4EA;color:#0A5C38"><strong>Campeón de la Copa: ${esc(gan)}</strong>${penales ? ' (por penales)' : ''}</div>` : ''}
+        ${p.nota ? `<div class="partido-aviso">${esc(p.nota)}</div>` : ''}</div>`;
+  };
+  const fase = (ronda, titulo, cantidad) => {
+    const ps = copa.filter((p) => p.ronda === ronda).sort((a, b) => a.jornada - b.jornada);
+    const cuerpo = ps.length ? ps.map((p) => filaCopa(p, ronda === 2)).join('') : Array.from({ length: cantidad }, aConfirmar).join('');
+    return `<div class="tarjeta" style="margin-bottom:20px"><div class="tarjeta-titulo verde"><span>Copa · ${esc(cat.nombre)}</span><span>${titulo}</span></div>${cuerpo}</div>`;
+  };
 
   const cuerpo = `<h1 class="titulo-seccion">Copa Desafío</h1><div class="controles">${selectorCategoria(L, 'copa', cat)}</div>
-    <div class="tarjeta" style="margin-bottom:20px"><div class="tarjeta-titulo verde"><span>Copa · ${esc(cat.nombre)}</span><span>Final</span></div>
-      <p class="nota-pie" style="border:0">Final entre el líder de la Ronda 1 y el líder de la Ronda 2.</p>
-      <div style="padding:8px 16px 16px">${finalistas}</div>${final}</div>
-    <div class="tarjeta"><div class="tarjeta-titulo"><span>Campeón del torneo · ${esc(cat.nombre)}</span><span style="font-family:var(--texto);font-size:11px;font-weight:500;text-transform:none;letter-spacing:0;color:#CFE8DA">mayor puntaje acumulado</span></div>
-      ${campeon ? `<div style="padding:20px 16px"><div class="dato-grande">${esc(campeon.club)}</div><div class="dato-detalle" style="margin-top:6px">${campeon.pj != null ? `PJ <b>${campeon.pj}</b> · G <b>${campeon.g}</b> · E <b>${campeon.e}</b> · P <b>${campeon.p}</b> · ` : ''}PTS <b>${campeon.pts}</b>${t.estado === 'finalizado' ? ' · torneo finalizado' : ' · hasta ahora'}</div></div>` : '<div class="vacio" style="border:0">Sin partidos jugados aún.</div>'}</div>`;
+    ${copa.length ? '' : '<div class="aviso">Los cruces de la Copa Desafío se confirman una vez terminado el torneo.</div>'}
+    ${fase(1, 'Semifinales', 2)}${fase(2, 'Final', 1)}`;
   return { titulo: 'Copa Desafío', html: marco(L, 'copa', cat, cuerpo) };
 }
 

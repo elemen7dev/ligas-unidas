@@ -27,7 +27,7 @@ Los datos (resultados, torneos, clubes) viven en Supabase (ref `ccmkohhgcjzimakq
 
 ## Reglas de negocio vigentes (resumen)
 - Tabla ordenada por PTS, DIF, GF y nombre del club (los criterios de desempate reales están pendientes de definir).
-- La tabla de liga solo cuenta partidos de tipo `liga`. Copa Desafío = final entre líderes de Ronda 1 y Ronda 2; el campeón del torneo es aparte.
+- La tabla de liga solo cuenta partidos de tipo `liga`. La Copa Desafío se carga a mano al terminar el torneo (panel > Fixture: semifinales = ronda 1, final = ronda 2, tipo `copa`); mientras tanto la pestaña Copa muestra los duelos "a confirmar". El campeón del torneo es aparte: con el fixture completo, el inicio proclama "X se consagra campeón del torneo".
 - Suspensión automática por amarillas (`reglas.amarillas_para_suspension`); las rojas se cargan a mano.
 - Torneos en borrador no son públicos. Un torneo finalizado queda en el Archivo; solo superadmin lo reabre.
 - Una liga puede tener varios torneos en curso: la pestaña "Otros campeonatos" aparece sola y `?torneo=<id>` elige cuál ver.
