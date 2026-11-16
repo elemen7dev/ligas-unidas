@@ -1,6 +1,6 @@
-# Modelo de datos — Plataforma de ligas (borrador 1)
+# Modelo de datos — Plataforma de ligas (diseño original; la implementación vigente está en las migraciones)
 
-Neutral respecto del backend (Firebase o Supabase). Las entidades se leen como tablas; en Firestore serían colecciones, preferentemente con `liga_id` en cada documento.
+Diseño original, pensado neutral respecto del backend. La decisión ya está tomada: Supabase (PostgreSQL con reglas por fila) para datos, autenticación y archivos, y Vercel para el sitio.
 
 Ejemplos que guían el diseño: **Liga de Fútbol Rural** (2 categorías, 9 equipos, ida y vuelta, Copa Desafío) y **Liga Bolívar** (Copa Centenario, Primera, 8 equipos, ida y vuelta, modalidad F11, escudos por club).
 
@@ -27,9 +27,9 @@ Clave: **club ≠ equipo.** El club es permanente en la liga; el equipo es el cl
 | Entidad | Campos principales |
 |---|---|
 | `usuarios` | id (auth), nombre, email |
-| `membresias` | usuario_id, liga_id (null = global), rol: `dueno` · `admin_liga` · `cargador` |
+| `membresias` | usuario_id, liga_id (null = global), rol: `superadmin` · `admin_liga` · `cargador` |
 
-- `dueno`: solo vos. Crea ligas, publica, ve todo.
+- `superadmin`: solo vos (antes se llamaba `dueno`; renombrado en la migración 003). Crea ligas, publica, ve todo.
 - `admin_liga`: configura su liga, equipos, torneos, usuarios cargadores.
 - `cargador`: solo carga resultados, goles, tarjetas y suspensiones.
 
@@ -107,11 +107,11 @@ jugador_id, torneo_id, fechas, motivo, `origen` (`manual` · `automatica`).
 ## 4. Reglas de acceso
 - Público: lee una liga solo si `estado = publicada`. Nunca lee usuarios, auditoría ni borradores.
 - `admin_liga` y `cargador`: solo escriben dentro de su `liga_id`. El `cargador` no toca configuración ni equipos.
-- `dueno`: todo.
+- `superadmin`: todo.
 - El `liga_id` se valida en el servidor (reglas de la base), nunca solo en la pantalla.
 
 ## 5. Imágenes
-Subida de escudos y logos a almacenamiento (Firebase Storage o Supabase Storage), con límite de peso y tipo. Reemplaza el "se guarda en memoria del navegador" actual de Fichajes.
+Subida de escudos y logos a almacenamiento (Supabase Storage), con límite de peso y tipo. Reemplaza el "se guarda en memoria del navegador" actual de Fichajes.
 
 ## 6. Migración de la demo
 | Demo actual | Modelo nuevo |
@@ -127,7 +127,7 @@ Subida de escudos y logos a almacenamiento (Firebase Storage o Supabase Storage)
 La liga rural sería la primera liga cargada (slug propuesto: `liga-rural`).
 
 ## 7. Decisiones abiertas
-1. Backend: Firebase (decidido antes) o Supabase (relacional, reglas por fila). Hay que confirmarlo antes de implementar.
-2. Dominio y nombre de la plataforma (marca por definir).
+1. ~~Backend~~: decidido, Supabase + Vercel (no se migra a Firebase).
+2. Dominio propio (hoy se usa ligasunidas.vercel.app).
 3. Qué incluye cada plan y precio.
 4. Fuera del alcance inicial: eliminación directa, grupos, generación automática de gráficos para redes, notificaciones.

@@ -23,7 +23,8 @@ Sitio: https://ligasunidas.vercel.app · Panel: /panel · Supabase ref `ccmkohhg
 
 ## Auditoría técnica (2026-11-15)
 - Aplicada la migración 023 (H-01 integridad entre entidades, H-02 lista blanca del cargador, H-05 amarillas al borrar partidos). Pruebas en `supabase_pruebas_023.sql`.
-- Pendiente: H-03 (mover `debe_cambiar_clave` a `app_metadata` en la Edge Function `usuarios`), H-04 (revisar quién puede hacer UPDATE en `torneos` en la base viva), M-04 (procedimiento para reconstruir la base; `config.toml` apunta a un `seed.sql` que no existe), actualizar `MODELO_DATOS.md` (rol `dueno` → `superadmin`).
+- Aplicadas también la migración 024 (H-04: el torneo solo se finaliza con cerrar_torneo()) y el cambio de H-03 (bandera de clave temporal en app_metadata, acción `clave_inicial` en la función `usuarios`, versión 2 desplegada).
+- Pendiente: M-04 (procedimiento para reconstruir la base; `config.toml` apunta a un `seed.sql` que no existe) y, opcional, validar la bandera de clave temporal también en las políticas de la base (hoy es solo una barrera de pantalla).
 
 ## Hecho hoy
 - "Modalidad" eliminada de la interfaz y de las consultas.

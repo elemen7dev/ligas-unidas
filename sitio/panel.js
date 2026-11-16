@@ -62,7 +62,8 @@ export async function vistaPanel(seg, q, ctx) {
   const { data } = await sb.auth.getSession();
   const ses = data.session;
   if (!ses) return vistaLogin(ctx);
-  if (ses.user.user_metadata?.debe_cambiar_clave) return vistaCambiarClave(ctx, ses);
+  // La bandera vive en app_metadata (el usuario no puede editarla); user_metadata es la marca vieja de cuentas anteriores.
+  if (ses.user.app_metadata?.debe_cambiar_clave || ses.user.user_metadata?.debe_cambiar_clave) return vistaCambiarClave(ctx, ses);
   const perfil = await cargarPerfil(ses);
   if (!perfil.roles.length) return vistaSinPermisos(ctx, ses);
   if (seg.length === 0) return vistaPanelInicio(ctx, ses, perfil);
@@ -133,9 +134,11 @@ function vistaCambiarClave(ctx, ses) {
         const m = $('#cc-msg'), err = validarClave($('#cc-nueva').value, $('#cc-repetir').value, ses.user.email);
         if (err) return msg(m, err, 'error');
         $('#cc-btn').disabled = true; msg(m, 'Guardando…');
-        const { error } = await sb.auth.updateUser({ password: $('#cc-nueva').value, data: { debe_cambiar_clave: false } });
+        // El cambio lo hace la función "usuarios" (clave_inicial): solo ella puede bajar la bandera, y lo hace junto con la clave nueva.
+        let falla = null;
+        try { await llamarUsuarios({ accion: 'clave_inicial', nueva: $('#cc-nueva').value }); } catch (err) { falla = err.message; }
         $('#cc-btn').disabled = false;
-        if (error) return msg(m, /same|different/i.test(error.message) ? 'La contraseña nueva debe ser distinta de la temporal.' : 'No se pudo guardar. Probá de nuevo.', 'error');
+        if (falla) return msg(m, falla, 'error');
         await sb.auth.refreshSession();
         ctx.redibujar();
       });

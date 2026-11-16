@@ -1,6 +1,7 @@
 // Ligas Unidas — función "usuarios": gestión de cuentas. SOLO el superadmin puede usarla.
 // Usa la clave de servicio (que nunca sale del servidor) para crear, reiniciar y eliminar cuentas.
-// Acciones: listar | crear | reiniciar | eliminar. Los roles se asignan desde el panel con la RLS normal.
+// Acciones: listar | crear | reiniciar | eliminar (solo superadmin) y clave_inicial (cualquier usuario con sesión, solo para sí mismo).
+// Los roles se asignan desde el panel con la RLS normal.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
@@ -41,11 +42,32 @@ Deno.serve(async (req: Request) => {
   if (errSesion || !quien?.user) return json(req, { error: "Sesión inválida" }, 401);
   const yo = quien.user.id;
 
-  const { data: esSuper } = await admin.from("membresias").select("id").eq("usuario_id", yo).eq("rol", "superadmin").limit(1);
-  if (!esSuper?.length) return json(req, { error: "Solo el superadmin puede gestionar usuarios" }, 403);
-
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json(req, { error: "Datos inválidos" }, 400); }
+
+  // Primer ingreso: cualquier usuario con sesión elige su contraseña propia. La bandera "debe cambiar la clave" vive en
+  // app_metadata, que el usuario NO puede editar: solo se baja acá, y únicamente junto con un cambio real de contraseña.
+  if (body.accion === "clave_inicial") {
+    const nueva = String(body.nueva ?? "");
+    const email = String(quien.user.email ?? "");
+    if (nueva.length < 10 || nueva.length > 72) return json(req, { error: "La contraseña debe tener entre 10 y 72 caracteres." }, 400);
+    if (nueva.toLowerCase() === email.toLowerCase()) return json(req, { error: "La contraseña no puede ser igual a tu email." }, 400);
+    if (/^(.)\1+$/.test(nueva)) return json(req, { error: "Elegí una contraseña menos obvia." }, 400);
+    // La nueva clave debe ser distinta de la actual (la temporal): si con ella se puede iniciar sesión, es la misma.
+    const anon = createClient(URL, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: igual } = await anon.auth.signInWithPassword({ email, password: nueva });
+    if (igual?.session) return json(req, { error: "La contraseña nueva debe ser distinta de la temporal." }, 400);
+    const { error } = await admin.auth.admin.updateUserById(yo, {
+      password: nueva,
+      app_metadata: { ...(quien.user.app_metadata ?? {}), debe_cambiar_clave: false },
+      user_metadata: { ...(quien.user.user_metadata ?? {}), debe_cambiar_clave: false },   // limpia la marca vieja
+    });
+    if (error) return json(req, { error: "No se pudo guardar la contraseña. Probá de nuevo." }, 400);
+    return json(req, { ok: true });
+  }
+
+  const { data: esSuper } = await admin.from("membresias").select("id").eq("usuario_id", yo).eq("rol", "superadmin").limit(1);
+  if (!esSuper?.length) return json(req, { error: "Solo el superadmin puede gestionar usuarios" }, 403);
 
   // El objetivo de reiniciar/eliminar: nunca uno mismo ni otro superadmin.
   const objetivoPermitido = async (id: unknown) => {
@@ -71,7 +93,7 @@ Deno.serve(async (req: Request) => {
       return json(req, {
         usuarios: usuarios.map((u) => ({
           id: u.id, email: u.email, creado: u.created_at, ultimo_ingreso: u.last_sign_in_at,
-          debe_cambiar: !!u.user_metadata?.debe_cambiar_clave,
+          debe_cambiar: !!(u.app_metadata?.debe_cambiar_clave || u.user_metadata?.debe_cambiar_clave),
           roles: (mem ?? []).filter((m) => m.usuario_id === u.id)
             .map((m) => ({ id: m.id, liga_id: m.liga_id, liga: m.liga_id ? nombreLiga[m.liga_id] ?? null : null, rol: m.rol })),
         })).sort((a, b) => String(a.email).localeCompare(String(b.email))),
@@ -91,7 +113,7 @@ Deno.serve(async (req: Request) => {
 
       const clave = claveTemporal();
       const { data, error } = await admin.auth.admin.createUser({
-        email, password: clave, email_confirm: true, user_metadata: { debe_cambiar_clave: true },
+        email, password: clave, email_confirm: true, app_metadata: { debe_cambiar_clave: true },
       });
       if (error || !data?.user) {
         const dup = /already|registered|exists/i.test(error?.message ?? "");
@@ -116,7 +138,7 @@ Deno.serve(async (req: Request) => {
       if (e1 || !actual?.user) return json(req, { error: "El usuario no existe." }, 404);
       const clave = claveTemporal();
       const { error } = await admin.auth.admin.updateUserById(id, {
-        password: clave, user_metadata: { ...(actual.user.user_metadata ?? {}), debe_cambiar_clave: true },
+        password: clave, app_metadata: { ...(actual.user.app_metadata ?? {}), debe_cambiar_clave: true },
       });
       if (error) return json(req, { error: "No se pudo reiniciar la clave." }, 400);
       return json(req, { ok: true, email: actual.user.email, clave });
